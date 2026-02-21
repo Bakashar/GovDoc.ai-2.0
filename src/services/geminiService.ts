@@ -14,8 +14,8 @@ import { AnalysisResult, Language } from "../types";
 // const part1 = "AIzaSyD..."; 
 // const part2 = "...xyz123";
 //
-const part1 = ""; // Paste first half here
-const part2 = ""; // Paste second half here
+const part1 = "AIzaSyCG3xRdXL2pRbxVsb"; // Paste first half here
+const part2 = "BaNiKzMtvECYA46DA"; // Paste second half here
 
 // LOGIC:
 // If part1 and part2 are filled (Deployment Mode), use them.
