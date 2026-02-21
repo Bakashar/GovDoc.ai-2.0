@@ -14,8 +14,8 @@ import { AnalysisResult, Language } from "../types";
 // const part1 = "AIzaSyD..."; 
 // const part2 = "...xyz123";
 //
-const part1 = "AIzaSyCG3xRdXL2pRbxVsb"; // Paste first half here
-const part2 = "BaNiKzMtvECYA46DA"; // Paste second half here
+const part1 = ""; // Paste first half here
+const part2 = ""; // Paste second half here
 
 // LOGIC:
 // If part1 and part2 are filled (Deployment Mode), use them.
@@ -23,7 +23,6 @@ const part2 = "BaNiKzMtvECYA46DA"; // Paste second half here
 const SYSTEM_API_KEY = (part1 && part2) ? (part1 + part2) : (process.env.GEMINI_API_KEY || "");
 
 // Initialize Gemini API
-// We create the instance lazily or ensure we handle empty keys gracefully in the UI
 const ai = new GoogleGenAI({ apiKey: SYSTEM_API_KEY });
 
 const SYSTEM_PROMPT = `
@@ -53,6 +52,19 @@ export const hasValidKey = (): boolean => {
   return !!SYSTEM_API_KEY && SYSTEM_API_KEY.length > 0;
 };
 
+// Helper to ensure correct MIME type
+function getMimeType(file: File): string {
+  if (file.type) return file.type;
+  const ext = file.name.split('.').pop()?.toLowerCase();
+  if (ext === 'pdf') return 'application/pdf';
+  if (ext === 'docx') return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+  if (ext === 'txt') return 'text/plain';
+  if (ext === 'md') return 'text/markdown';
+  if (['jpg', 'jpeg'].includes(ext || '')) return 'image/jpeg';
+  if (ext === 'png') return 'image/png';
+  return 'application/octet-stream';
+}
+
 export async function analyzeDocument(
   file: File,
   language: Language,
@@ -79,8 +91,8 @@ export async function analyzeDocument(
     }
   }
 
-  // Use gemini-3.1-pro-preview for thinking/search capabilities
   const modelId = "gemini-3.1-pro-preview"; 
+  const mimeType = getMimeType(file);
 
   let contents: any[] = [];
   let promptText = `Analyze this legal document in ${language}. Focus on KZ legislation.`;
@@ -100,7 +112,7 @@ export async function analyzeDocument(
         parts: [
           {
             inlineData: {
-              mimeType: file.type,
+              mimeType: mimeType,
               data: base64Data,
             },
           },
@@ -110,56 +122,96 @@ export async function analyzeDocument(
     ];
   }
 
-  // Configure tools based on Deep Analysis toggle
   const tools: any[] = [];
   if (useDeepAnalysis) {
     tools.push({ googleSearch: {} });
   }
 
+  const responseSchema = {
+    type: Type.OBJECT,
+    properties: {
+      summary: { type: Type.STRING },
+      risks: {
+        type: Type.ARRAY,
+        items: {
+          type: Type.OBJECT,
+          properties: {
+            clause: { type: Type.STRING },
+            riskLevel: { type: Type.STRING, enum: ["Low", "Medium", "High", "Critical"] },
+            violation: { type: Type.STRING },
+            recommendation: { type: Type.STRING },
+          },
+          required: ["clause", "riskLevel", "violation", "recommendation"],
+        },
+      },
+      verdict: { type: Type.STRING, enum: ["Safe", "Needs Review", "Dangerous"] },
+    },
+    required: ["summary", "risks", "verdict"],
+  };
+
+  // Strategy: Try with full features, then fallback if it fails
+  // Attempt 1: Full Configuration (Thinking + Search + Schema)
   try {
+    console.log("Attempt 1: Full Analysis");
     const response = await ai.models.generateContent({
       model: modelId,
       contents: contents,
       config: {
         systemInstruction: SYSTEM_PROMPT,
-        // Only apply High Thinking Level if Deep Analysis is requested
         thinkingConfig: useDeepAnalysis ? { thinkingLevel: ThinkingLevel.HIGH } : undefined,
         tools: tools.length > 0 ? tools : undefined,
         responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            summary: { type: Type.STRING },
-            risks: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  clause: { type: Type.STRING },
-                  riskLevel: { type: Type.STRING, enum: ["Low", "Medium", "High", "Critical"] },
-                  violation: { type: Type.STRING },
-                  recommendation: { type: Type.STRING },
-                },
-                required: ["clause", "riskLevel", "violation", "recommendation"],
-              },
-            },
-            verdict: { type: Type.STRING, enum: ["Safe", "Needs Review", "Dangerous"] },
-          },
-          required: ["summary", "risks", "verdict"],
-        },
+        responseSchema: responseSchema,
       },
     });
-
-    const resultText = response.text;
-    if (!resultText) {
-      throw new Error("No response from AI");
-    }
-
-    return JSON.parse(resultText) as AnalysisResult;
-  } catch (error) {
-    console.error("Analysis failed:", error);
-    throw error;
+    
+    if (response.text) return JSON.parse(response.text) as AnalysisResult;
+  } catch (e) {
+    console.warn("Attempt 1 failed:", e);
   }
+
+  // Attempt 2: Disable Thinking Mode (Keep Search + Schema)
+  // Sometimes Thinking Mode conflicts with strict JSON schema or specific file types
+  if (useDeepAnalysis) {
+    try {
+      console.log("Attempt 2: Fallback (No Thinking Mode)");
+      const response = await ai.models.generateContent({
+        model: modelId,
+        contents: contents,
+        config: {
+          systemInstruction: SYSTEM_PROMPT,
+          tools: tools.length > 0 ? tools : undefined,
+          responseMimeType: "application/json",
+          responseSchema: responseSchema,
+        },
+      });
+      
+      if (response.text) return JSON.parse(response.text) as AnalysisResult;
+    } catch (e) {
+      console.warn("Attempt 2 failed:", e);
+    }
+  }
+
+  // Attempt 3: Basic Analysis (No Search, No Thinking, Just Schema)
+  try {
+    console.log("Attempt 3: Basic Fallback");
+    const response = await ai.models.generateContent({
+      model: modelId,
+      contents: contents,
+      config: {
+        systemInstruction: SYSTEM_PROMPT,
+        responseMimeType: "application/json",
+        responseSchema: responseSchema,
+      },
+    });
+    
+    if (response.text) return JSON.parse(response.text) as AnalysisResult;
+  } catch (e) {
+    console.error("All attempts failed:", e);
+    throw new Error("Analysis failed. The document might be too complex or unreadable.");
+  }
+
+  throw new Error("No response generated.");
 }
 
 async function fileToGenerativePart(file: File): Promise<string> {
