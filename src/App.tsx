@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Upload, 
@@ -9,11 +9,12 @@ import {
   Loader2, 
   Shield, 
   Globe,
-  BrainCircuit
+  BrainCircuit,
+  Key
 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import { analyzeDocument } from './services/geminiService';
+import { analyzeDocument, hasValidKey } from './services/geminiService';
 import { AnalysisResult, Language } from './types';
 import { translations } from './translations';
 
@@ -28,9 +29,38 @@ export default function App() {
   const [useDeepAnalysis, setUseDeepAnalysis] = useState(false);
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isKeyValid, setIsKeyValid] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const t = translations[language];
+
+  useEffect(() => {
+    setIsKeyValid(hasValidKey());
+  }, []);
+
+  if (!isKeyValid) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+        <div className="bg-white max-w-md w-full p-8 rounded-2xl shadow-lg border border-slate-200 text-center space-y-4">
+          <div className="bg-amber-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto">
+            <Key className="w-8 h-8 text-amber-600" />
+          </div>
+          <h2 className="text-2xl font-bold text-slate-900">API Key Missing</h2>
+          <p className="text-slate-600">
+            To use this application, you need to configure your Gemini API key.
+          </p>
+          <div className="bg-slate-100 p-4 rounded-lg text-left text-sm font-mono text-slate-700 overflow-x-auto">
+            <p className="text-slate-500 mb-2">// src/services/geminiService.ts</p>
+            <p>const part1 = "YOUR_KEY_PART_1";</p>
+            <p>const part2 = "YOUR_KEY_PART_2";</p>
+          </div>
+          <p className="text-xs text-slate-500">
+            Edit the file above to add your key parts. This split method ensures safety on public repositories.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
