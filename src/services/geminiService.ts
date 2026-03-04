@@ -91,7 +91,7 @@ export async function analyzeDocument(
     }
   }
 
-  const modelId = "gemini-3.1-pro-preview"; 
+  const modelId = "gemini-1.5-flash"; 
   const mimeType = getMimeType(file);
 
   let contents: any[] = [];
