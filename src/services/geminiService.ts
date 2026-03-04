@@ -91,7 +91,7 @@ export async function analyzeDocument(
     }
   }
 
-  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" }); 
+  const modelId = "gemini-1.5-flash-latest"; 
   const mimeType = getMimeType(file);
 
   let contents: any[] = [];
