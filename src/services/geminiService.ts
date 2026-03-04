@@ -2,8 +2,8 @@ import { GoogleGenAI, ThinkingLevel, Type } from "@google/genai";
 import * as mammoth from "mammoth";
 import { AnalysisResult, Language } from "../types";
 
-const part1 = "AIzaSyCG3xRdXL2pRbxVsb"; 
-const part2 = "BaNiKzMtvECYA46DA"; 
+const part1 = "AIzaSyDVJ7T013jz9Ko4"; 
+const part2 = "Ymiu8w3D2qMJ5XkSfhY"; 
 
 const SYSTEM_API_KEY = (part1 && part2) ? (part1 + part2) : (process.env.GEMINI_API_KEY || "");
 
@@ -72,7 +72,7 @@ export async function analyzeDocument(
     }
   }
 
-  const modelId = "gemini-3.1-flash-lite"; 
+  const modelId = "gemini-3.1-pro-preview"; 
   const mimeType = getMimeType(file);
 
   let contents: any[] = [];
