@@ -2,27 +2,11 @@ import { GoogleGenAI, ThinkingLevel, Type } from "@google/genai";
 import * as mammoth from "mammoth";
 import { AnalysisResult, Language } from "../types";
 
-// ---------------------------------------------------------------------------
-// INFRASTRUCTURE: Universal API Key (Split-Key Method)
-// ---------------------------------------------------------------------------
-// FOR VERCEL/GITHUB DEPLOYMENT:
-// 1. Split your Gemini API key into two parts.
-// 2. Paste them into 'part1' and 'part2' below.
-// 3. This bypasses GitHub's secret scanning bots while keeping the app working.
-//
-// Example:
-// const part1 = "AIzaSyD..."; 
-// const part2 = "...xyz123";
-//
-const part1 = "AIzaSyCG3xRdXL2pRbxVsb"; // Paste first half here
-const part2 = "BaNiKzMtvECYA46DA"; // Paste second half here
+const part1 = "AIzaSyCG3xRdXL2pRbxVsb"; 
+const part2 = "BaNiKzMtvECYA46DA"; 
 
-// LOGIC:
-// If part1 and part2 are filled (Deployment Mode), use them.
-// Otherwise, fallback to process.env.GEMINI_API_KEY (AI Studio Preview Mode).
 const SYSTEM_API_KEY = (part1 && part2) ? (part1 + part2) : (process.env.GEMINI_API_KEY || "");
 
-// Initialize Gemini API
 const ai = new GoogleGenAI({ apiKey: SYSTEM_API_KEY });
 
 const SYSTEM_PROMPT = `
@@ -52,7 +36,6 @@ export const hasValidKey = (): boolean => {
   return !!SYSTEM_API_KEY && SYSTEM_API_KEY.length > 0;
 };
 
-// Helper to ensure correct MIME type
 function getMimeType(file: File): string {
   if (file.type) return file.type;
   const ext = file.name.split('.').pop()?.toLowerCase();
@@ -76,10 +59,8 @@ export async function analyzeDocument(
 
   let textContent = "";
 
-  // Handle DOCX files using mammoth
   if (
-    file.type ===
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+    file.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
     file.name.endsWith(".docx")
   ) {
     try {
@@ -87,11 +68,11 @@ export async function analyzeDocument(
       const result = await mammoth.extractRawText({ arrayBuffer });
       textContent = result.value;
     } catch (e) {
-      console.error("Mammoth extraction failed:", e);
+      console.error(e);
     }
   }
 
-  const modelId = "gemini-1.5-flash-latest"; 
+  const modelId = "gemini-3.1-flash-lite"; 
   const mimeType = getMimeType(file);
 
   let contents: any[] = [];
@@ -149,10 +130,7 @@ export async function analyzeDocument(
     required: ["summary", "risks", "verdict"],
   };
 
-  // Strategy: Try with full features, then fallback if it fails
-  // Attempt 1: Full Configuration (Thinking + Search + Schema)
   try {
-    console.log("Attempt 1: Full Analysis");
     const response = await ai.models.generateContent({
       model: modelId,
       contents: contents,
@@ -167,14 +145,11 @@ export async function analyzeDocument(
     
     if (response.text) return JSON.parse(response.text) as AnalysisResult;
   } catch (e) {
-    console.warn("Attempt 1 failed:", e);
+    console.warn(e);
   }
 
-  // Attempt 2: Disable Thinking Mode (Keep Search + Schema)
-  // Sometimes Thinking Mode conflicts with strict JSON schema or specific file types
   if (useDeepAnalysis) {
     try {
-      console.log("Attempt 2: Fallback (No Thinking Mode)");
       const response = await ai.models.generateContent({
         model: modelId,
         contents: contents,
@@ -188,13 +163,11 @@ export async function analyzeDocument(
       
       if (response.text) return JSON.parse(response.text) as AnalysisResult;
     } catch (e) {
-      console.warn("Attempt 2 failed:", e);
+      console.warn(e);
     }
   }
 
-  // Attempt 3: Basic Analysis (No Search, No Thinking, Just Schema)
   try {
-    console.log("Attempt 3: Basic Fallback");
     const response = await ai.models.generateContent({
       model: modelId,
       contents: contents,
@@ -207,7 +180,7 @@ export async function analyzeDocument(
     
     if (response.text) return JSON.parse(response.text) as AnalysisResult;
   } catch (e) {
-    console.error("All attempts failed:", e);
+    console.error(e);
     throw new Error("Analysis failed. The document might be too complex or unreadable.");
   }
 
